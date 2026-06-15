@@ -11,7 +11,13 @@ export function getSocket(): Socket {
   if (!socket) {
     socket = io(SOCKET_URL, {
       autoConnect: false,
-      transports: ['websocket', 'polling'],
+      // SnapDeploy/Cloudflare may block WebSocket upgrades; polling works reliably.
+      transports: ['polling'],
+      upgrade: false,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
+      timeout: 20000,
       auth: {
         token: process.env.NEXT_PUBLIC_SOCKET_TOKEN || 'dev',
       },

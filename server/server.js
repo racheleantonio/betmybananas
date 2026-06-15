@@ -26,10 +26,11 @@ const ROOM_SECRET = process.env.ROOM_SECRET || 'dev-secret-change-me';
 const app = express();
 const server = http.createServer(app);
 
+app.set('trust proxy', 1);
+
 const corsOptions = {
   origin: CORS_ORIGIN === '*' ? true : CORS_ORIGIN.split(',').map((o) => o.trim()),
   methods: ['GET', 'POST'],
-  credentials: true,
 };
 
 app.use(cors(corsOptions));
