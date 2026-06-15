@@ -19,7 +19,7 @@ const {
   getPublicRoomState,
 } = require('./gameManager');
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const ROOM_SECRET = process.env.ROOM_SECRET || 'dev-secret-change-me';
 
@@ -263,7 +263,7 @@ setInterval(() => {
   }
 }, 60 * 60 * 1000);
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Bet My Bananas server running on port ${PORT}`);
   console.log(`CORS origin: ${CORS_ORIGIN}`);
 });
