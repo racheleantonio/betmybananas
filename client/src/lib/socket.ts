@@ -2,10 +2,52 @@
 
 import { io, Socket } from 'socket.io-client';
 import type { RoomState, SocketResponse } from '@/types/game';
+import { clientLog, clientWarn, clientError } from '@/lib/logger';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
 
 let socket: Socket | null = null;
+let debugListenersAttached = false;
+
+function attachSocketDebugListeners(s: Socket) {
+  if (debugListenersAttached) return;
+  debugListenersAttached = true;
+
+  clientLog('Socket client initialized', {
+    url: SOCKET_URL,
+    transports: ['polling'],
+  });
+
+  s.on('connect', () => {
+    clientLog('Socket connected', {
+      id: s.id,
+      transport: s.io.engine.transport.name,
+    });
+  });
+
+  s.on('disconnect', (reason) => {
+    clientWarn('Socket disconnected', { reason });
+  });
+
+  s.on('connect_error', (err) => {
+    clientError('Socket connect_error', {
+      message: err.message,
+      type: err.name,
+    });
+  });
+
+  s.io.on('reconnect_attempt', (attempt) => {
+    clientLog('Socket reconnect attempt', { attempt });
+  });
+
+  s.io.on('reconnect', (attempt) => {
+    clientLog('Socket reconnected', { attempt });
+  });
+
+  s.io.on('reconnect_failed', () => {
+    clientError('Socket reconnect failed');
+  });
+}
 
 export function getSocket(): Socket {
   if (!socket) {
@@ -22,13 +64,19 @@ export function getSocket(): Socket {
         token: process.env.NEXT_PUBLIC_SOCKET_TOKEN || 'dev',
       },
     });
+    attachSocketDebugListeners(socket);
   }
   return socket;
 }
 
 export function connectSocket(): Promise<void> {
   const s = getSocket();
-  if (s.connected) return Promise.resolve();
+  if (s.connected) {
+    clientLog('Socket already connected', { id: s.id });
+    return Promise.resolve();
+  }
+
+  clientLog('Connecting to server...', { url: SOCKET_URL });
 
   return new Promise((resolve, reject) => {
     s.connect();
@@ -39,6 +87,7 @@ export function connectSocket(): Promise<void> {
 
 export function disconnectSocket(): void {
   if (socket?.connected) {
+    clientLog('Disconnecting socket', { id: socket.id });
     socket.disconnect();
   }
 }
@@ -49,11 +98,21 @@ function emitWithCallback<T extends SocketResponse>(
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     const s = getSocket();
+    clientLog(`Emit ${event}`, payload ?? {});
+
     s.emit(event, payload ?? {}, (response: T) => {
       if (!response) {
+        clientError(`No response for ${event}`);
         reject(new Error('No response from server'));
         return;
       }
+
+      if (response.success) {
+        clientLog(`Response ${event}`, { success: true });
+      } else {
+        clientWarn(`Response ${event}`, { success: false, error: response.error });
+      }
+
       resolve(response);
     });
   });

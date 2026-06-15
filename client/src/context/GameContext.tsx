@@ -11,6 +11,7 @@ import {
   saveSession,
   clearSession,
 } from '@/lib/socket';
+import { clientLog, clientWarn } from '@/lib/logger';
 
 interface GameContextValue {
   room: RoomState | null;
@@ -64,19 +65,41 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
 
     connectSocket()
-      .then(() => setConnected(true))
-      .catch(() => setError('Unable to connect to game server'));
+      .then(() => {
+        clientLog('GameProvider connected');
+        setConnected(true);
+      })
+      .catch((err) => {
+        clientWarn('GameProvider connection failed', { message: err?.message });
+        setError('Unable to connect to game server');
+      });
 
     const socket = getSocket();
-    const onConnect = () => setConnected(true);
-    const onDisconnect = () => setConnected(false);
+    const onConnect = () => {
+      clientLog('GameProvider socket connect event');
+      setConnected(true);
+      setError(null);
+    };
+    const onDisconnect = (reason: string) => {
+      clientWarn('GameProvider socket disconnect event', { reason });
+      setConnected(false);
+    };
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
 
-    const unsubState = onRoomState((state) => setRoom(state));
-    const unsubOrg = onOrganizerDisconnected(() =>
-      setError('Organizer disconnected. Waiting for reconnection...')
-    );
+    const unsubState = onRoomState((state) => {
+      clientLog('Room state updated', {
+        roomId: state.id,
+        status: state.status,
+        players: state.players.length,
+        roundNumber: state.roundNumber,
+      });
+      setRoom(state);
+    });
+    const unsubOrg = onOrganizerDisconnected(() => {
+      clientWarn('Organizer disconnected');
+      setError('Organizer disconnected. Waiting for reconnection...');
+    });
 
     return () => {
       socket.off('connect', onConnect);

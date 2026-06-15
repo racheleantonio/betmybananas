@@ -18,6 +18,7 @@ const {
   findRoomBySocketId,
   getPublicRoomState,
 } = require('./gameManager');
+const { log, warn, error: logError } = require('./logger');
 
 const PORT = process.env.PORT || 3000;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
@@ -35,6 +36,17 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    log(`${req.method} ${req.path} ${res.statusCode} ${Date.now() - start}ms`, {
+      origin: req.headers.origin || '-',
+      ip: req.ip,
+    });
+  });
+  next();
+});
 
 const io = new Server(server, { cors: corsOptions });
 
@@ -68,6 +80,7 @@ io.use((socket, next) => {
   if (SOCKET_AUTH_TOKEN) {
     const token = socket.handshake.auth?.token;
     if (token !== SOCKET_AUTH_TOKEN) {
+      warn('Socket auth rejected', { socketId: socket.id, origin: socket.handshake.headers.origin });
       return next(new Error('Invalid authentication token'));
     }
   }
@@ -75,15 +88,27 @@ io.use((socket, next) => {
 });
 
 io.on('connection', (socket) => {
+  log('Socket connected', {
+    socketId: socket.id,
+    origin: socket.handshake.headers.origin,
+    transport: socket.conn.transport.name,
+  });
+
+  socket.conn.on('upgrade', (transport) => {
+    log('Socket transport upgraded', { socketId: socket.id, transport: transport.name });
+  });
+
   socket.on('room:create', ({ name }, callback) => {
     try {
       const room = createRoom(rooms, socket.id, name.trim());
       socket.join(room.id);
       socketToRoom.set(socket.id, room.id);
 
+      log('Room created', { roomId: room.id, organizer: name.trim(), socketId: socket.id });
       callback?.({ success: true, room: getPublicRoomState(room), playerId: room.players[socket.id].id });
       broadcastRoomState(room);
     } catch (err) {
+      logError('room:create failed', { socketId: socket.id, error: err.message });
       callback?.({ success: false, error: err.message });
     }
   });
@@ -92,6 +117,7 @@ io.on('connection', (socket) => {
     try {
       const room = rooms.get(roomId);
       if (!room) {
+        warn('room:join failed - room not found', { roomId, name, socketId: socket.id });
         callback?.({ success: false, error: 'Room not found' });
         return;
       }
@@ -99,15 +125,19 @@ io.on('connection', (socket) => {
       if (playerId) {
         const player = reconnectPlayer(room, socket.id, playerId);
         if (!player) {
+          warn('room:join failed - player not found', { roomId, playerId, socketId: socket.id });
           callback?.({ success: false, error: 'Player not found' });
           return;
         }
+        log('Player reconnected', { roomId, playerId, name: player.name, socketId: socket.id });
       } else {
         const result = joinRoom(rooms, roomId, socket.id, name.trim());
         if (result.error) {
+          warn('room:join failed', { roomId, name, error: result.error, socketId: socket.id });
           callback?.({ success: false, error: result.error });
           return;
         }
+        log('Player joined', { roomId, name: name.trim(), socketId: socket.id });
       }
 
       socket.join(roomId);
@@ -117,6 +147,7 @@ io.on('connection', (socket) => {
       callback?.({ success: true, room: getPublicRoomState(room), playerId: player.id });
       broadcastRoomState(room);
     } catch (err) {
+      logError('room:join error', { roomId, error: err.message, socketId: socket.id });
       callback?.({ success: false, error: err.message });
     }
   });
@@ -124,15 +155,19 @@ io.on('connection', (socket) => {
   socket.on('game:start', (_payload, callback) => {
     const room = findRoomBySocketId(rooms, socket.id);
     if (!room) {
+      warn('game:start - not in room', { socketId: socket.id });
       callback?.({ success: false, error: 'Not in a room' });
       return;
     }
 
     const result = startGame(room, socket.id);
     if (result.error) {
+      warn('game:start failed', { roomId: room.id, error: result.error });
       callback?.({ success: false, error: result.error });
       return;
     }
+
+    log('Game started', { roomId: room.id, players: Object.keys(room.players).length });
 
     callback?.({ success: true });
     broadcastRoomState(room);
@@ -151,6 +186,7 @@ io.on('connection', (socket) => {
       return;
     }
 
+    log('Round started', { roomId: room.id, roundNumber: room.roundNumber, question });
     callback?.({ success: true });
     io.to(room.id).emit('round:started', { roundNumber: room.roundNumber });
     broadcastRoomState(room);
@@ -165,10 +201,12 @@ io.on('connection', (socket) => {
 
     const result = placeBet(room, socket.id, { optionIndex, amount });
     if (result.error) {
+      warn('bet:place failed', { roomId: room.id, optionIndex, amount, error: result.error });
       callback?.({ success: false, error: result.error });
       return;
     }
 
+    log('Bet placed', { roomId: room.id, optionIndex, amount, playerId: result.player.id });
     callback?.({ success: true, bananas: result.player.bananas });
     broadcastRoomState(room);
   });
@@ -229,8 +267,10 @@ io.on('connection', (socket) => {
     broadcastRoomState(room);
   });
 
-  socket.on('disconnect', () => {
+  socket.on('disconnect', (reason) => {
     const roomId = socketToRoom.get(socket.id);
+    log('Socket disconnected', { socketId: socket.id, roomId: roomId || '-', reason });
+
     if (!roomId) return;
 
     const room = rooms.get(roomId);
@@ -246,6 +286,7 @@ io.on('connection', (socket) => {
     }
 
     if (Object.keys(room.players).length === 0) {
+      log('Room deleted (empty)', { roomId });
       rooms.delete(roomId);
       return;
     }
@@ -265,6 +306,10 @@ setInterval(() => {
 }, 60 * 60 * 1000);
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Bet My Bananas server running on port ${PORT}`);
-  console.log(`CORS origin: ${CORS_ORIGIN}`);
+  log('Bet My Bananas server started', {
+    port: PORT,
+    corsOrigin: CORS_ORIGIN,
+    authEnabled: Boolean(SOCKET_AUTH_TOKEN),
+    nodeEnv: process.env.NODE_ENV || 'development',
+  });
 });
