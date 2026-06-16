@@ -138,23 +138,18 @@ export async function startGame() {
   return emitWithCallback('game:start');
 }
 
-export async function startRound(question: string, options: string[]) {
-  return emitWithCallback('round:start', { question, options });
+export async function startRound() {
+  return emitWithCallback('round:start');
 }
 
-export async function placeBet(optionIndex: number, amount: number) {
+export async function placeBet(amount: number) {
   return emitWithCallback<{ success: boolean; error?: string; bananas?: number }>('bet:place', {
-    optionIndex,
     amount,
   });
 }
 
-export async function closeBetting() {
-  return emitWithCallback('betting:close');
-}
-
-export async function revealWinner(winningOption: number) {
-  return emitWithCallback('round:reveal', { winningOption });
+export async function endRound() {
+  return emitWithCallback('round:end');
 }
 
 export async function endGame() {
@@ -174,7 +169,13 @@ export function onRoundStarted(callback: (data: { roundNumber: number }) => void
 }
 
 export function onRoundRevealed(
-  callback: (data: { winningOption: number; payouts: Record<string, number>; totalPot: number }) => void
+  callback: (data: {
+    winnerId: string;
+    winningBet: number;
+    secondHighestBet: number;
+    winnerPayout: number;
+    bankIncrease: number;
+  }) => void
 ): () => void {
   const s = getSocket();
   s.on('round:revealed', callback);

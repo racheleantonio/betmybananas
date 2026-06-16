@@ -7,11 +7,22 @@ import { useRef, useState } from 'react';
 import { useGame, useCurrentPlayer } from '@/context/GameContext';
 import { placeBet } from '@/lib/socket';
 
+export function BankDisplay() {
+  const { room } = useGame();
+  if (!room || room.status === 'lobby') return null;
+
+  return (
+    <div className="player-card p-3 mb-3 flex align-items-center justify-content-between">
+      <span className="text-500">Banca</span>
+      <span className="score-badge text-xl">🏦 {room.bank} 🍌</span>
+    </div>
+  );
+}
+
 export function BettingPanel() {
   const { room, playerId } = useGame();
   const currentPlayer = useCurrentPlayer();
-  const [selectedOption, setSelectedOption] = useState<number | null>(null);
-  const [betAmount, setBetAmount] = useState<number>(10);
+  const [betAmount, setBetAmount] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const toast = useRef<Toast>(null);
 
@@ -21,20 +32,18 @@ export function BettingPanel() {
   const round = room.currentRound;
   const myBet = round.bets.find((b) => b.playerId === playerId);
   const bettingOpen = round.status === 'open';
-  const totalPot = round.bets.reduce((sum, b) => sum + b.amount, 0);
+  const winner = round.winnerId
+    ? room.players.find((p) => p.id === round.winnerId)
+    : null;
 
   const handlePlaceBet = async () => {
-    if (selectedOption === null) {
-      toast.current?.show({ severity: 'warn', summary: 'Seleziona un\'opzione' });
-      return;
-    }
     if (!betAmount || betAmount < 1) {
-      toast.current?.show({ severity: 'warn', summary: 'Importo non valido' });
+      toast.current?.show({ severity: 'warn', summary: 'Inserisci un numero valido' });
       return;
     }
 
     setLoading(true);
-    const result = await placeBet(selectedOption, betAmount);
+    const result = await placeBet(betAmount);
     setLoading(false);
 
     if (!result.success) {
@@ -44,8 +53,8 @@ export function BettingPanel() {
 
     toast.current?.show({
       severity: 'success',
-      summary: 'Scommessa piazzata!',
-      detail: `${betAmount} 🍌 su "${round.options[selectedOption]}"`,
+      summary: 'Puntata piazzata!',
+      detail: `${betAmount} 🍌`,
     });
   };
 
@@ -53,40 +62,49 @@ export function BettingPanel() {
     <>
       <Toast ref={toast} />
       <div className="player-card p-4 mb-3">
-        <h3 className="mt-0">{round.question}</h3>
+        <h3 className="mt-0">Round {room.roundNumber}</h3>
 
-        {round.status === 'revealed' && round.winningOption !== null && (
-          <p className="text-green-400 font-bold mb-3">
-            Vincitore: {round.options[round.winningOption]}
-          </p>
+        {round.status === 'revealed' && winner && round.winningBet !== null && (
+          <div className="mb-3">
+            <p className="text-green-400 font-bold mb-2">
+              Vincitore: {winner.name} con {round.winningBet} 🍌
+            </p>
+            <p className="text-500 m-0">
+              Guadagno: {round.winnerPayout} 🍌 ({round.winningBet} − {round.secondHighestBet})
+            </p>
+            <p className="text-500 mt-1 mb-0">
+              Banca +{round.bankIncrease} 🍌
+            </p>
+          </div>
         )}
 
-        <div className="flex flex-column gap-2 mb-3">
-          {round.options.map((option, index) => {
-            const betsOnOption = round.bets.filter((b) => b.optionIndex === index);
-            const potOnOption = betsOnOption.reduce((s, b) => s + b.amount, 0);
-            const isSelected = selectedOption === index;
-            const isWinning =
-              round.status === 'revealed' && round.winningOption === index;
-            const isMyBet = myBet?.optionIndex === index;
+        {round.status === 'revealed' && (
+          <ul className="list-none p-0 m-0 mb-3">
+            {[...round.bets]
+              .sort((a, b) => b.amount - a.amount)
+              .map((bet) => {
+                const player = room.players.find((p) => p.id === bet.playerId);
+                const isWinner = bet.playerId === round.winnerId;
+                return (
+                  <li
+                    key={bet.playerId}
+                    className={`py-2 border-bottom-1 border-800 ${isWinner ? 'text-green-400 font-bold' : ''}`}
+                  >
+                    {player?.name || 'Giocatore'}: {bet.amount} 🍌
+                    {isWinner && ' ✓'}
+                  </li>
+                );
+              })}
+          </ul>
+        )}
 
-            return (
-              <Button
-                key={index}
-                label={`${option}${isMyBet ? ` (tu: ${myBet.amount} 🍌)` : ''}${potOnOption > 0 ? ` · ${potOnOption} 🍌` : ''}`}
-                className={`option-button ${isSelected ? 'selected' : ''} ${isWinning ? 'winning-option' : ''}`}
-                outlined={!isSelected && !isWinning}
-                disabled={!bettingOpen || round.status !== 'open'}
-                onClick={() => setSelectedOption(index)}
-              />
-            );
-          })}
-        </div>
-
-        {bettingOpen && round.status === 'open' && (
+        {bettingOpen && (
           <div className="flex flex-column gap-3">
+            <p className="text-500 m-0">
+              Quante banane vuoi puntare? Vince la puntata più alta.
+            </p>
             <div className="flex align-items-center gap-2">
-              <label htmlFor="bet-amount">Banane da scommettere</label>
+              <label htmlFor="bet-amount">La tua puntata</label>
               <span className="text-500 ml-auto">
                 Disponibili: {currentPlayer?.bananas ?? 0} 🍌
               </span>
@@ -100,24 +118,23 @@ export function BettingPanel() {
               showButtons
               className="w-full"
             />
+            {myBet && (
+              <p className="text-yellow-400 m-0">
+                Puntata attuale: {myBet.amount} 🍌
+              </p>
+            )}
             <Button
-              label={myBet ? 'Aggiorna scommessa' : 'Piazza scommessa'}
+              label={myBet ? 'Aggiorna puntata' : 'Piazza puntata'}
               icon="pi pi-wallet"
               onClick={handlePlaceBet}
               loading={loading}
               disabled={!currentPlayer || currentPlayer.bananas < 1}
             />
+            <p className="text-500 m-0">
+              Puntate ricevute: {round.bets.length} / {room.players.length}
+            </p>
           </div>
         )}
-
-        {round.status === 'closed' && (
-          <p className="text-yellow-400">
-            <i className="pi pi-lock mr-2" />
-            Scommesse chiuse. In attesa del risultato...
-          </p>
-        )}
-
-        <p className="text-500 mt-3 mb-0">Piatto totale: {totalPot} 🍌</p>
       </div>
     </>
   );

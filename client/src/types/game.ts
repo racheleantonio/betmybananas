@@ -8,31 +8,35 @@ export interface Player {
 
 export interface Bet {
   playerId: string;
-  optionIndex: number;
   amount: number;
 }
 
 export interface CurrentRound {
-  question: string;
-  options: string[];
-  status: 'open' | 'closed' | 'revealed';
+  status: 'open' | 'revealed';
   bets: Bet[];
-  winningOption: number | null;
+  winnerId: string | null;
+  winningBet: number | null;
+  secondHighestBet: number | null;
+  winnerPayout: number | null;
+  bankIncrease: number | null;
 }
 
 export interface RoundHistory {
   roundNumber: number;
-  question: string;
-  options: string[];
-  winningOption: number;
-  totalPot: number;
-  payouts: Record<string, number>;
+  bets: Bet[];
+  winnerId: string;
+  winningBet: number;
+  secondHighestBet: number;
+  winnerPayout: number;
+  bankIncrease: number;
+  bankTotal: number;
 }
 
 export interface RoomState {
   id: string;
   status: 'lobby' | 'playing' | 'betting' | 'revealed' | 'finished';
   roundNumber: number;
+  bank: number;
   players: Player[];
   currentRound: CurrentRound | null;
   history: RoundHistory[];

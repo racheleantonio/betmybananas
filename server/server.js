@@ -11,8 +11,7 @@ const {
   startGame,
   startRound,
   placeBet,
-  closeBetting,
-  revealWinner,
+  endRound,
   endGame,
   removePlayerFromRoom,
   findRoomBySocketId,
@@ -173,79 +172,76 @@ io.on('connection', (socket) => {
     broadcastRoomState(room);
   });
 
-  socket.on('round:start', ({ question, options }, callback) => {
+  socket.on('round:start', (_payload, callback) => {
     const room = findRoomBySocketId(rooms, socket.id);
     if (!room) {
       callback?.({ success: false, error: 'Not in a room' });
       return;
     }
 
-    const result = startRound(room, socket.id, { question, options });
+    const result = startRound(room, socket.id);
     if (result.error) {
       callback?.({ success: false, error: result.error });
       return;
     }
 
-    log('Round started', { roomId: room.id, roundNumber: room.roundNumber, question });
+    log('Round started', { roomId: room.id, roundNumber: room.roundNumber });
     callback?.({ success: true });
     io.to(room.id).emit('round:started', { roundNumber: room.roundNumber });
     broadcastRoomState(room);
   });
 
-  socket.on('bet:place', ({ optionIndex, amount }, callback) => {
+  socket.on('bet:place', ({ amount }, callback) => {
     const room = findRoomBySocketId(rooms, socket.id);
     if (!room) {
       callback?.({ success: false, error: 'Not in a room' });
       return;
     }
 
-    const result = placeBet(room, socket.id, { optionIndex, amount });
+    const result = placeBet(room, socket.id, { amount });
     if (result.error) {
-      warn('bet:place failed', { roomId: room.id, optionIndex, amount, error: result.error });
+      warn('bet:place failed', { roomId: room.id, amount, error: result.error });
       callback?.({ success: false, error: result.error });
       return;
     }
 
-    log('Bet placed', { roomId: room.id, optionIndex, amount, playerId: result.player.id });
+    log('Bet placed', { roomId: room.id, amount, playerId: result.player.id });
     callback?.({ success: true, bananas: result.player.bananas });
     broadcastRoomState(room);
   });
 
-  socket.on('betting:close', (_payload, callback) => {
+  socket.on('round:end', (_payload, callback) => {
     const room = findRoomBySocketId(rooms, socket.id);
     if (!room) {
       callback?.({ success: false, error: 'Not in a room' });
       return;
     }
 
-    const result = closeBetting(room, socket.id);
+    const result = endRound(room, socket.id);
     if (result.error) {
+      warn('round:end failed', { roomId: room.id, error: result.error });
       callback?.({ success: false, error: result.error });
       return;
     }
 
-    callback?.({ success: true });
-    broadcastRoomState(room);
-  });
-
-  socket.on('round:reveal', ({ winningOption }, callback) => {
-    const room = findRoomBySocketId(rooms, socket.id);
-    if (!room) {
-      callback?.({ success: false, error: 'Not in a room' });
-      return;
-    }
-
-    const result = revealWinner(room, socket.id, { winningOption });
-    if (result.error) {
-      callback?.({ success: false, error: result.error });
-      return;
-    }
+    log('Round ended', {
+      roomId: room.id,
+      roundNumber: room.roundNumber,
+      winnerId: result.winnerId,
+      winningBet: result.winningBet,
+      secondHighestBet: result.secondHighestBet,
+      winnerPayout: result.winnerPayout,
+      bankIncrease: result.bankIncrease,
+      bankTotal: room.bank,
+    });
 
     callback?.({ success: true });
     io.to(room.id).emit('round:revealed', {
-      winningOption,
-      payouts: result.payouts,
-      totalPot: result.totalPot,
+      winnerId: result.winnerId,
+      winningBet: result.winningBet,
+      secondHighestBet: result.secondHighestBet,
+      winnerPayout: result.winnerPayout,
+      bankIncrease: result.bankIncrease,
     });
     broadcastRoomState(room);
   });

@@ -93,6 +93,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         status: state.status,
         players: state.players.length,
         roundNumber: state.roundNumber,
+        bank: state.bank,
       });
       setRoom(state);
     });

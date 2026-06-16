@@ -10,6 +10,7 @@ function createEmptyRoom(roomId, organizerSocketId, organizerName) {
     id: roomId,
     organizerId,
     organizerSocketId,
+    bank: 0,
     players: {
       [organizerSocketId]: {
         id: organizerId,
@@ -40,16 +41,17 @@ function getPublicRoomState(room) {
   if (room.currentRound) {
     const bets = Object.entries(room.currentRound.bets).map(([playerId, bet]) => ({
       playerId,
-      optionIndex: bet.optionIndex,
       amount: bet.amount,
     }));
 
     currentRound = {
-      question: room.currentRound.question,
-      options: room.currentRound.options,
       status: room.currentRound.status,
       bets,
-      winningOption: room.currentRound.status === 'revealed' ? room.currentRound.winningOption : null,
+      winnerId: room.currentRound.status === 'revealed' ? room.currentRound.winnerId : null,
+      winningBet: room.currentRound.status === 'revealed' ? room.currentRound.winningBet : null,
+      secondHighestBet: room.currentRound.status === 'revealed' ? room.currentRound.secondHighestBet : null,
+      winnerPayout: room.currentRound.status === 'revealed' ? room.currentRound.winnerPayout : null,
+      bankIncrease: room.currentRound.status === 'revealed' ? room.currentRound.bankIncrease : null,
     };
   }
 
@@ -57,6 +59,7 @@ function getPublicRoomState(room) {
     id: room.id,
     status: room.status,
     roundNumber: room.roundNumber,
+    bank: room.bank || 0,
     players,
     currentRound,
     history: room.history,
@@ -120,32 +123,28 @@ function startGame(room, socketId) {
   return { room };
 }
 
-function startRound(room, socketId, { question, options }) {
+function startRound(room, socketId) {
   if (room.organizerSocketId !== socketId) return { error: 'Only the organizer can start a round' };
-  if (room.status !== 'playing' && room.status !== 'betting' && room.status !== 'revealed') {
+  if (room.status !== 'playing' && room.status !== 'revealed') {
     return { error: 'Game is not active' };
   }
-  if (!question || !options || options.length < 2 || options.length > 4) {
-    return { error: 'Provide a question and 2-4 options' };
-  }
-
-  const trimmedOptions = options.map((o) => String(o).trim()).filter(Boolean);
-  if (trimmedOptions.length < 2) return { error: 'Provide at least 2 valid options' };
 
   room.roundNumber += 1;
   room.status = 'betting';
   room.currentRound = {
-    question: String(question).trim(),
-    options: trimmedOptions,
     bets: {},
     status: 'open',
-    winningOption: null,
+    winnerId: null,
+    winningBet: null,
+    secondHighestBet: null,
+    winnerPayout: null,
+    bankIncrease: null,
   };
 
   return { room };
 }
 
-function placeBet(room, socketId, { optionIndex, amount }) {
+function placeBet(room, socketId, { amount }) {
   if (room.status !== 'betting' || !room.currentRound || room.currentRound.status !== 'open') {
     return { error: 'Betting is closed' };
   }
@@ -159,78 +158,82 @@ function placeBet(room, socketId, { optionIndex, amount }) {
   }
   if (betAmount > player.bananas) return { error: 'Not enough bananas' };
 
-  const idx = Number(optionIndex);
-  if (!Number.isInteger(idx) || idx < 0 || idx >= room.currentRound.options.length) {
-    return { error: 'Invalid option' };
-  }
-
   const existingBet = room.currentRound.bets[player.id];
   if (existingBet) {
     player.bananas += existingBet.amount;
   }
 
   player.bananas -= betAmount;
-  room.currentRound.bets[player.id] = { optionIndex: idx, amount: betAmount };
+  room.currentRound.bets[player.id] = { amount: betAmount };
 
   return { room, player };
 }
 
-function closeBetting(room, socketId) {
-  if (room.organizerSocketId !== socketId) return { error: 'Only the organizer can close betting' };
+function getSecondHighestBetValue(bets) {
+  const uniqueAmounts = [...new Set(bets.map((bet) => bet.amount))].sort((a, b) => b - a);
+  return uniqueAmounts.length >= 2 ? uniqueAmounts[1] : 0;
+}
+
+function pickWinner(bets) {
+  const highestAmount = Math.max(...bets.map((bet) => bet.amount));
+  const topBets = bets.filter((bet) => bet.amount === highestAmount);
+  topBets.sort((a, b) => a.playerId.localeCompare(b.playerId));
+  return topBets[0];
+}
+
+function endRound(room, socketId) {
+  if (room.organizerSocketId !== socketId) return { error: 'Only the organizer can end the round' };
   if (!room.currentRound || room.currentRound.status !== 'open') {
     return { error: 'No open betting round' };
   }
 
-  room.currentRound.status = 'closed';
-  room.status = 'betting';
-  return { room };
-}
+  const bets = Object.entries(room.currentRound.bets).map(([playerId, bet]) => ({
+    playerId,
+    amount: bet.amount,
+  }));
 
-function revealWinner(room, socketId, { winningOption }) {
-  if (room.organizerSocketId !== socketId) return { error: 'Only the organizer can reveal the winner' };
-  if (!room.currentRound || room.currentRound.status === 'revealed') {
-    return { error: 'No round to reveal' };
+  if (bets.length < 2) {
+    return { error: 'Need at least 2 bets before ending the round' };
   }
 
-  const idx = Number(winningOption);
-  if (!Number.isInteger(idx) || idx < 0 || idx >= room.currentRound.options.length) {
-    return { error: 'Invalid winning option' };
+  const winner = pickWinner(bets);
+  const winningBet = winner.amount;
+  const secondHighestBet = getSecondHighestBetValue(bets);
+  const winnerPayout = winningBet - secondHighestBet;
+
+  const winnerPlayer = Object.values(room.players).find((p) => p.id === winner.playerId);
+  if (winnerPlayer) {
+    winnerPlayer.bananas += winnerPayout;
   }
 
+  room.bank = (room.bank || 0) + winningBet;
   room.currentRound.status = 'revealed';
-  room.currentRound.winningOption = idx;
+  room.currentRound.winnerId = winner.playerId;
+  room.currentRound.winningBet = winningBet;
+  room.currentRound.secondHighestBet = secondHighestBet;
+  room.currentRound.winnerPayout = winnerPayout;
+  room.currentRound.bankIncrease = winningBet;
   room.status = 'revealed';
-
-  const winningBets = Object.entries(room.currentRound.bets).filter(
-    ([, bet]) => bet.optionIndex === idx
-  );
-
-  const totalPot = Object.values(room.currentRound.bets).reduce((sum, b) => sum + b.amount, 0);
-  const winningPot = winningBets.reduce((sum, [, b]) => sum + b.amount, 0);
-
-  const payouts = {};
-
-  if (winningPot > 0) {
-    for (const [playerId, bet] of winningBets) {
-      const share = (bet.amount / winningPot) * totalPot;
-      const player = Object.values(room.players).find((p) => p.id === playerId);
-      if (player) {
-        player.bananas += Math.floor(share);
-        payouts[playerId] = Math.floor(share);
-      }
-    }
-  }
 
   room.history.push({
     roundNumber: room.roundNumber,
-    question: room.currentRound.question,
-    options: room.currentRound.options,
-    winningOption: idx,
-    totalPot,
-    payouts,
+    bets: bets.map((bet) => ({ ...bet })),
+    winnerId: winner.playerId,
+    winningBet,
+    secondHighestBet,
+    winnerPayout,
+    bankIncrease: winningBet,
+    bankTotal: room.bank,
   });
 
-  return { room, payouts, totalPot, winningPot };
+  return {
+    room,
+    winnerId: winner.playerId,
+    winningBet,
+    secondHighestBet,
+    winnerPayout,
+    bankIncrease: winningBet,
+  };
 }
 
 function endGame(room, socketId) {
@@ -268,8 +271,7 @@ module.exports = {
   startGame,
   startRound,
   placeBet,
-  closeBetting,
-  revealWinner,
+  endRound,
   endGame,
   removePlayerFromRoom,
   findRoomBySocketId,

@@ -9,7 +9,7 @@ import { useGame, useCurrentPlayer } from '@/context/GameContext';
 import { joinRoom, loadSession } from '@/lib/socket';
 import { PlayerList } from '@/components/PlayerList';
 import { OrganizerPanel, GameStatusBadge } from '@/components/OrganizerPanel';
-import { BettingPanel } from '@/components/BettingPanel';
+import { BettingPanel, BankDisplay } from '@/components/BettingPanel';
 import { RoundHistory } from '@/components/RoundHistory';
 
 function GameContent() {
@@ -123,6 +123,7 @@ function GameContent() {
 
       <div className="grid">
         <div className="col-12 lg:col-8">
+          <BankDisplay />
           <OrganizerPanel />
           <BettingPanel />
 
