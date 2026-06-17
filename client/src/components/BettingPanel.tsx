@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { Button } from 'primereact/button';
-import { InputNumber } from 'primereact/inputnumber';
-import { Toast } from 'primereact/toast';
-import { useRef, useState } from 'react';
-import { useGame, useCurrentPlayer } from '@/context/GameContext';
-import { placeBet } from '@/lib/socket';
+import { Button } from "primereact/button";
+import { InputNumber } from "primereact/inputnumber";
+import { Toast } from "primereact/toast";
+import { useRef, useState } from "react";
+import { useGame, useCurrentPlayer } from "@/context/GameContext";
+import { placeBet } from "@/lib/socket";
 
 export function BankDisplay() {
   const { room } = useGame();
-  if (!room || room.status === 'lobby') return null;
+  if (!room || room.status === "lobby") return null;
 
   return (
     <div className="player-card p-3 mb-3 flex align-items-center justify-content-between">
@@ -27,18 +27,21 @@ export function BettingPanel() {
   const toast = useRef<Toast>(null);
 
   if (!room?.currentRound) return null;
-  if (room.status !== 'betting' && room.status !== 'revealed') return null;
+  if (room.status !== "betting" && room.status !== "revealed") return null;
 
   const round = room.currentRound;
   const myBet = round.bets.find((b) => b.playerId === playerId);
-  const bettingOpen = round.status === 'open';
+  const bettingOpen = round.status === "open";
   const winner = round.winnerId
     ? room.players.find((p) => p.id === round.winnerId)
     : null;
 
   const handlePlaceBet = async () => {
     if (!betAmount || betAmount < 1) {
-      toast.current?.show({ severity: 'warn', summary: 'Inserisci un numero valido' });
+      toast.current?.show({
+        severity: "warn",
+        summary: "Inserisci un numero valido",
+      });
       return;
     }
 
@@ -47,13 +50,17 @@ export function BettingPanel() {
     setLoading(false);
 
     if (!result.success) {
-      toast.current?.show({ severity: 'error', summary: 'Errore', detail: result.error });
+      toast.current?.show({
+        severity: "error",
+        summary: "Errore",
+        detail: result.error,
+      });
       return;
     }
 
     toast.current?.show({
-      severity: 'success',
-      summary: 'Puntata piazzata!',
+      severity: "success",
+      summary: "Puntata piazzata!",
       detail: `${betAmount} 🍌`,
     });
   };
@@ -64,21 +71,20 @@ export function BettingPanel() {
       <div className="player-card p-4 mb-3">
         <h3 className="mt-0">Round {room.roundNumber}</h3>
 
-        {round.status === 'revealed' && winner && round.winningBet !== null && (
+        {round.status === "revealed" && winner && round.winningBet !== null && (
           <div className="mb-3">
             <p className="text-green-400 font-bold mb-2">
               Vincitore: {winner.name} con {round.winningBet} 🍌
             </p>
             <p className="text-500 m-0">
-              Guadagno: {round.winnerPayout} 🍌 ({round.winningBet} − {round.secondHighestBet})
+              Guadagno: {round.winnerPayout} 🍌 ({round.winningBet} −{" "}
+              {round.secondHighestBet})
             </p>
-            <p className="text-500 mt-1 mb-0">
-              Banca +{round.bankIncrease} 🍌
-            </p>
+            <p className="text-500 mt-1 mb-0">Banca +{round.bankIncrease} 🍌</p>
           </div>
         )}
 
-        {round.status === 'revealed' && (
+        {round.status === "revealed" && (
           <ul className="list-none p-0 m-0 mb-3">
             {[...round.bets]
               .sort((a, b) => b.amount - a.amount)
@@ -88,10 +94,10 @@ export function BettingPanel() {
                 return (
                   <li
                     key={bet.playerId}
-                    className={`py-2 border-bottom-1 border-800 ${isWinner ? 'text-green-400 font-bold' : ''}`}
+                    className={`py-2 border-bottom-1 border-800 ${isWinner ? "text-green-400 font-bold" : ""}`}
                   >
-                    {player?.name || 'Giocatore'}: {bet.amount} 🍌
-                    {isWinner && ' ✓'}
+                    {player?.name || "Giocatore"}: {bet.amount} 🍌
+                    {isWinner && " ✓"}
                   </li>
                 );
               })}
@@ -114,7 +120,6 @@ export function BettingPanel() {
               value={betAmount}
               onValueChange={(e) => setBetAmount(e.value ?? 1)}
               min={1}
-              max={currentPlayer?.bananas ?? 100}
               showButtons
               className="w-full"
             />
@@ -124,7 +129,7 @@ export function BettingPanel() {
               </p>
             )}
             <Button
-              label={myBet ? 'Aggiorna puntata' : 'Piazza puntata'}
+              label={myBet ? "Aggiorna puntata" : "Piazza puntata"}
               icon="pi pi-wallet"
               onClick={handlePlaceBet}
               loading={loading}

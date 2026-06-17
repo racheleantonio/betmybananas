@@ -2,7 +2,6 @@ const { v4: uuidv4 } = require('uuid');
 
 const STARTING_BANANAS = 100;
 const MIN_BET = 1;
-const MAX_BET = 100;
 
 function createEmptyRoom(roomId, organizerSocketId, organizerName) {
   const organizerId = uuidv4();
@@ -153,17 +152,12 @@ function placeBet(room, socketId, { amount }) {
   if (!player) return { error: 'Player not found' };
 
   const betAmount = Number(amount);
-  if (!Number.isInteger(betAmount) || betAmount < MIN_BET || betAmount > MAX_BET) {
-    return { error: `Bet must be between ${MIN_BET} and ${MAX_BET}` };
+  if (!Number.isInteger(betAmount) || betAmount < MIN_BET) {
+    return { error: `Bet must be at least ${MIN_BET}` };
   }
   if (betAmount > player.bananas) return { error: 'Not enough bananas' };
 
-  const existingBet = room.currentRound.bets[player.id];
-  if (existingBet) {
-    player.bananas += existingBet.amount;
-  }
-
-  player.bananas -= betAmount;
+  // Store bet without deducting bananas (will be deducted in endRound)
   room.currentRound.bets[player.id] = { amount: betAmount };
 
   return { room, player };
@@ -195,6 +189,14 @@ function endRound(room, socketId) {
   if (bets.length < 2) {
     return { error: 'Need at least 2 bets before ending the round' };
   }
+
+  // Deduct all bets from players at the end of the round
+  bets.forEach((bet) => {
+    const player = Object.values(room.players).find((p) => p.id === bet.playerId);
+    if (player) {
+      player.bananas -= bet.amount;
+    }
+  });
 
   const winner = pickWinner(bets);
   const winningBet = winner.amount;
