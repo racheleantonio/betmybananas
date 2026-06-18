@@ -15,7 +15,7 @@ function attachSocketDebugListeners(s: Socket) {
 
   clientLog("Socket client initialized", {
     url: SOCKET_URL,
-    transports: ["polling"],
+    transports: ["websocket", "polling"],
   });
 
   s.on("connect", () => {
