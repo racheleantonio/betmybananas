@@ -50,6 +50,12 @@ function attachSocketDebugListeners(s: Socket) {
 }
 
 export function getSocket(): Socket {
+  console.log("getSocket called");
+  const token = process.env.NEXT_PUBLIC_SOCKET_TOKEN;
+  console.log(
+    "Socket token length:",
+    token && token.length > 0 ? token.length : "not set",
+  );
   if (!socket) {
     socket = io(SOCKET_URL, {
       autoConnect: false,
