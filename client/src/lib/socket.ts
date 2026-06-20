@@ -4,7 +4,7 @@ import { io, Socket } from "socket.io-client";
 import type { RoomState, SocketResponse } from "@/types/game";
 import { clientLog, clientWarn, clientError } from "@/lib/logger";
 
-const SOCKET_URL = "https://betmybananas.containers.snapdeploy.dev";
+const SOCKET_URL = "https://betmybananas.onrender.com";
 
 let socket: Socket | null = null;
 let debugListenersAttached = false;
@@ -59,8 +59,7 @@ export function getSocket(): Socket {
   if (!socket) {
     socket = io(SOCKET_URL, {
       autoConnect: false,
-      // SnapDeploy/Cloudflare may block WebSocket upgrades; polling works reliably.
-      transports: ["polling"],
+      transports: ["websocket", "polling"],
       upgrade: false,
       reconnection: true,
       reconnectionAttempts: 10,
