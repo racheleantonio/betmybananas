@@ -236,7 +236,7 @@ function endRound(room, socketId) {
     (p) => p.id === winner.playerId
   );
   if (winnerPlayer) {
-    winnerPlayer.bananas -= winnerPayout;
+    winnerPlayer.bananas += winnerPayout;
   }
 
   room.bank = (room.bank || 0) + winningBet;
