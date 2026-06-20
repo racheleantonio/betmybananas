@@ -224,26 +224,19 @@ function endRound(room, socketId) {
     return { error: 'Need at least 2 bets before ending the round' };
   }
 
-  // Deduct all bets from players at the end of the round
-  bets.forEach((bet) => {
-    const player = Object.values(room.players).find(
-      (p) => p.id === bet.playerId
-    );
-    if (player) {
-      player.bananas -= bet.amount;
-    }
-  });
-
   const winner = pickWinner(bets);
   const winningBet = winner.amount;
   const secondHighestBet = getSecondHighestBetValue(bets);
   const winnerPayout = winningBet - secondHighestBet;
 
+  // Only the winner pays — and only the delta between their bet and the
+  // second-highest bet, not their full bet. Everyone else keeps their
+  // bananas untouched.
   const winnerPlayer = Object.values(room.players).find(
     (p) => p.id === winner.playerId
   );
   if (winnerPlayer) {
-    winnerPlayer.bananas += winnerPayout;
+    winnerPlayer.bananas -= winnerPayout;
   }
 
   room.bank = (room.bank || 0) + winningBet;
