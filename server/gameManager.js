@@ -184,12 +184,9 @@ function placeBet(room, socketId, { amount }) {
     return { error: 'Bet must be a positive whole number' };
   }
 
-  const existingBet = room.currentRound.bets[player.id];
-  if (existingBet) {
-    player.bananas += existingBet.amount;
-  }
-
-  player.bananas -= betAmount;
+  // Don't deduct bananas here — doing so would change the live scoreboard
+  // mid-round and leak the bet amount to everyone watching. Bananas are
+  // deducted once, in endRound, after betting closes.
   room.currentRound.bets[player.id] = { amount: betAmount };
 
   return { room, player };
