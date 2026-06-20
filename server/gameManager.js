@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 
 const STARTING_BANANAS = 10;
+const BANK_START = 10;
 const MIN_BET = 1;
 
 function createEmptyRoom(roomId, organizerSocketId, organizerName) {
@@ -9,7 +10,7 @@ function createEmptyRoom(roomId, organizerSocketId, organizerName) {
     id: roomId,
     organizerId,
     organizerSocketId,
-    bank: 0,
+    bank: BANK_START,
     players: {
       [organizerSocketId]: {
         id: organizerId,
