@@ -207,6 +207,12 @@ function pickWinner(bets) {
   return topBets[0];
 }
 
+function pickBetByAmount(bets, amount) {
+  const matching = bets.filter((bet) => bet.amount === amount);
+  matching.sort((a, b) => a.playerId.localeCompare(b.playerId));
+  return matching[0];
+}
+
 function endRound(room, socketId) {
   if (room.organizerSocketId !== socketId)
     return { error: 'Only the organizer can end the round' };
@@ -229,48 +235,54 @@ function endRound(room, socketId) {
   const winningBet = winner.amount;
   const secondHighestBet = getSecondHighestBetValue(bets);
   const delta = winningBet - secondHighestBet;
-  const winnerPayout = secondHighestBet;
-  // Only the winner pays — and only the delta between their bet and the
-  // second-highest bet, not their full bet. Everyone else keeps their
-  // bananas untouched.
+  const bankBeforeRound = room.bank || 0;
+
+  // Winner takes the current bank minus the delta — this can go negative
+  // if their bid was way higher than the second-highest bid relative to
+  // what's in the bank.
+  const winnerPayout = bankBeforeRound - delta;
+
   const winnerPlayer = Object.values(room.players).find(
     (p) => p.id === winner.playerId
   );
   if (winnerPlayer) {
     winnerPlayer.bananas += winnerPayout;
-  }
-
-  const secondHighestBetPlayer = Object.values(room.players).find((p) => {
-    const bet = room.currentRound.bets[p.id];
-    return bet && bet.amount === secondHighestBet;
-  });
-  if (secondHighestBetPlayer) {
-    if (Array.isArray(secondHighestBetPlayer)) {
-      secondHighestBetPlayer.forEach((p) => {
-        p.bananas += delta;
-      });
-    } else {
-      if (secondHighestBetPlayer) secondHighestBetPlayer.bananas += delta;
+    if (winnerPlayer.bananas < 0 && !winnerPlayer.eliminated) {
+      winnerPlayer.eliminated = true;
     }
   }
 
-  room.bank = (room.bank || 0) + winningBet;
+  // Second place always receives the delta, regardless of the winner's outcome.
+  const secondPlaceBet = pickBetByAmount(bets, secondHighestBet);
+  if (secondPlaceBet) {
+    const secondPlacePlayer = Object.values(room.players).find(
+      (p) => p.id === secondPlaceBet.playerId
+    );
+    if (secondPlacePlayer) {
+      secondPlacePlayer.bananas += delta;
+    }
+  }
+
+  // The bank becomes this round's winning bid, ready for next round.
+  room.bank = winningBet;
+
   room.currentRound.status = 'revealed';
   room.currentRound.winnerId = winner.playerId;
   room.currentRound.winningBet = winningBet;
   room.currentRound.secondHighestBet = secondHighestBet;
   room.currentRound.winnerPayout = winnerPayout;
-  room.currentRound.bankIncrease = winningBet;
+  room.currentRound.newBankTotal = room.bank;
   room.status = 'revealed';
 
   room.history.push({
     roundNumber: room.roundNumber,
     bets: bets.map((bet) => ({ ...bet })),
     winnerId: winner.playerId,
+    secondPlaceId: secondPlaceBet.playerId,
     winningBet,
     secondHighestBet,
     winnerPayout,
-    bankIncrease: winningBet,
+    delta,
     bankTotal: room.bank,
   });
 
@@ -280,7 +292,7 @@ function endRound(room, socketId) {
     winningBet,
     secondHighestBet,
     winnerPayout,
-    bankIncrease: winningBet,
+    newBankTotal: room.bank,
   };
 }
 
