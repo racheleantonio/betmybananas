@@ -103,6 +103,7 @@ export function BettingPanel() {
               }
             >
               Bilancio vincitore: {round.winnerPayout! >= 0 ? '+' : ''}
+              {`(${round.winningBet} - ${round.secondHighestBet}) 🍌 `}
               {round.winnerPayout} 🍌
               {winner.eliminated && ' — eliminato!'}
             </p>
