@@ -228,8 +228,8 @@ function endRound(room, socketId) {
   const winner = pickWinner(bets);
   const winningBet = winner.amount;
   const secondHighestBet = getSecondHighestBetValue(bets);
-  const winnerPayout = winningBet - secondHighestBet;
-
+  const delta = winningBet - secondHighestBet;
+  const winnerPayout = secondHighestBet;
   // Only the winner pays — and only the delta between their bet and the
   // second-highest bet, not their full bet. Everyone else keeps their
   // bananas untouched.
@@ -239,6 +239,20 @@ function endRound(room, socketId) {
   if (winnerPlayer) {
     winnerPlayer.bananas += winnerPayout;
   }
+
+  const secondHighestBetPlayer = Object.values(room.players).find((p) => {
+    const bet = room.currentRound.bets[p.id];
+    return bet && bet.amount === secondHighestBet;
+  });
+  if (secondHighestBetPlayer) {
+    if (Array.isArray(secondHighestBetPlayer)) {
+      secondHighestBetPlayer.forEach((p) => {
+        p.bananas += delta;
+      }); 
+    } else {
+      
+      if(secondHighestBetPlayer) secondHighestBetPlayer.bananas += delta;
+    }
 
   room.bank = (room.bank || 0) + winningBet;
   room.currentRound.status = 'revealed';
