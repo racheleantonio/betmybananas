@@ -194,10 +194,11 @@ export function onRoundStarted(
 export function onRoundRevealed(
   callback: (data: {
     winnerId: string;
+    secondPlaceId: string | null;
     winningBet: number;
     secondHighestBet: number;
     winnerPayout: number;
-    bankIncrease: number;
+    newBankTotal: number;
   }) => void
 ): () => void {
   const s = getSocket();

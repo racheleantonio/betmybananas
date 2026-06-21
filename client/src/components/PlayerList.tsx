@@ -10,7 +10,11 @@ interface PlayerListProps {
   showBananas?: boolean;
 }
 
-export function PlayerList({ players, currentPlayerId, showBananas = true }: PlayerListProps) {
+export function PlayerList({
+  players,
+  currentPlayerId,
+  showBananas = true,
+}: PlayerListProps) {
   const sorted = [...players].sort((a, b) => b.bananas - a.bananas);
 
   return (
@@ -23,11 +27,20 @@ export function PlayerList({ players, currentPlayerId, showBananas = true }: Pla
           >
             <div className="flex align-items-center gap-2">
               <span className="text-500 font-bold w-2rem">{index + 1}.</span>
-              <span className={player.id === currentPlayerId ? 'text-yellow-400 font-bold' : ''}>
+              <span
+                className={
+                  player.id === currentPlayerId
+                    ? 'text-yellow-400 font-bold'
+                    : ''
+                }
+              >
                 {player.name}
                 {player.id === currentPlayerId && ' (tu)'}
               </span>
-              {player.isOrganizer && <Tag value="Organizer" severity="warning" />}
+              {player.isOrganizer && (
+                <Tag value="Organizer" severity="warning" />
+              )}
+              {player.eliminated && <Tag value="Eliminato" severity="danger" />}
               {!player.connected && <Tag value="Offline" severity="danger" />}
             </div>
             {showBananas && (

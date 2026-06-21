@@ -4,6 +4,7 @@ export interface Player {
   bananas: number;
   isOrganizer: boolean;
   connected: boolean;
+  eliminated: boolean;
 }
 
 export interface Bet {
@@ -17,18 +18,20 @@ export interface CurrentRound {
   winnerId: string | null;
   winningBet: number | null;
   secondHighestBet: number | null;
+  secondPlaceId: string | null;
   winnerPayout: number | null;
-  bankIncrease: number | null;
+  newBankTotal: number | null;
 }
 
 export interface RoundHistory {
   roundNumber: number;
   bets: Bet[];
   winnerId: string;
+  secondPlaceId: string | null;
   winningBet: number;
   secondHighestBet: number;
   winnerPayout: number;
-  bankIncrease: number;
+  delta: number;
   bankTotal: number;
 }
 

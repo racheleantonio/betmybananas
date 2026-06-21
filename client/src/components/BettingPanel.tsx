@@ -35,7 +35,9 @@ export function BettingPanel() {
   const winner = round.winnerId
     ? room.players.find((p) => p.id === round.winnerId)
     : null;
-
+  const secondPlacePlayer = round.secondPlaceId
+    ? room.players.find((p) => p.id === round.secondPlaceId)
+    : null;
   const handlePlaceBet = async () => {
     if (!betAmount || betAmount < 1) {
       toast.current?.show({
@@ -71,19 +73,6 @@ export function BettingPanel() {
       <div className="player-card p-4 mb-3">
         <h3 className="mt-0">Round {room.roundNumber}</h3>
 
-        {round.status === 'revealed' && winner && round.winningBet !== null && (
-          <div className="mb-3">
-            <p className="text-green-400 font-bold mb-2">
-              Vincitore: {winner.name} con {round.winningBet} 🍌
-            </p>
-            <p className="text-500 m-0">
-              Guadagno: {round.winnerPayout} 🍌 ({round.winningBet} −{' '}
-              {round.secondHighestBet})
-            </p>
-            <p className="text-500 mt-1 mb-0">Banca +{round.bankIncrease} 🍌</p>
-          </div>
-        )}
-
         {round.status === 'revealed' && (
           <ul className="list-none p-0 m-0 mb-3">
             {[...round.bets]
@@ -102,6 +91,31 @@ export function BettingPanel() {
                 );
               })}
           </ul>
+        )}
+        {round.status === 'revealed' && winner && round.winningBet !== null && (
+          <div className="mb-3">
+            <p className="text-green-400 font-bold mb-2">
+              Vincitore: {winner.name} con {round.winningBet} 🍌
+            </p>
+            <p
+              className={
+                round.winnerPayout! >= 0 ? 'text-500 m-0' : 'text-red-400 m-0'
+              }
+            >
+              Bilancio vincitore: {round.winnerPayout! >= 0 ? '+' : ''}
+              {round.winnerPayout} 🍌
+              {winner.eliminated && ' — eliminato!'}
+            </p>
+            {secondPlacePlayer && round.secondHighestBet !== null && (
+              <p className="text-500 m-0">
+                {secondPlacePlayer.name} (2° posto): +
+                {round.winningBet - round.secondHighestBet} 🍌
+              </p>
+            )}
+            <p className="text-500 mt-1 mb-0">
+              Nuova banca: {round.newBankTotal} 🍌
+            </p>
+          </div>
         )}
 
         {bettingOpen && (

@@ -18,6 +18,7 @@ function createEmptyRoom(roomId, organizerSocketId, organizerName) {
         bananas: STARTING_BANANAS,
         socketId: organizerSocketId,
         isOrganizer: true,
+        eliminated: false,
       },
     },
     status: 'lobby',
@@ -35,15 +36,13 @@ function getPublicRoomState(room) {
     bananas: p.bananas,
     isOrganizer: p.isOrganizer,
     connected: Boolean(p.socketId),
+    eliminated: Boolean(p.eliminated),
   }));
 
   let currentRound = null;
   if (room.currentRound) {
     const bets = Object.entries(room.currentRound.bets).map(
-      ([playerId, bet]) => ({
-        playerId,
-        amount: bet.amount,
-      })
+      ([playerId, bet]) => ({ playerId, amount: bet.amount })
     );
 
     currentRound = {
@@ -61,13 +60,17 @@ function getPublicRoomState(room) {
         room.currentRound.status === 'revealed'
           ? room.currentRound.secondHighestBet
           : null,
+      secondPlaceId:
+        room.currentRound.status === 'revealed'
+          ? room.currentRound.secondPlaceId
+          : null,
       winnerPayout:
         room.currentRound.status === 'revealed'
           ? room.currentRound.winnerPayout
           : null,
-      bankIncrease:
+      newBankTotal:
         room.currentRound.status === 'revealed'
-          ? room.currentRound.bankIncrease
+          ? room.currentRound.newBankTotal
           : null,
     };
   }
@@ -116,6 +119,7 @@ function joinRoom(rooms, roomId, socketId, playerName) {
     bananas: STARTING_BANANAS,
     socketId,
     isOrganizer: false,
+    eliminated: false,
   };
   room.players[socketId] = player;
   return { room, player };
@@ -161,8 +165,9 @@ function startRound(room, socketId) {
     winnerId: null,
     winningBet: null,
     secondHighestBet: null,
+    secondPlaceId: null,
     winnerPayout: null,
-    bankIncrease: null,
+    newBankTotal: null,
   };
 
   return { room };
@@ -179,7 +184,8 @@ function placeBet(room, socketId, { amount }) {
 
   const player = room.players[socketId];
   if (!player) return { error: 'Player not found' };
-
+  if (player.eliminated)
+    return { error: 'You have been eliminated from this game' };
   const betAmount = Number(amount);
   if (!Number.isInteger(betAmount) || betAmount < 1) {
     return { error: 'Bet must be a positive whole number' };
