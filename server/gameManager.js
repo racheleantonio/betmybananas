@@ -248,11 +248,11 @@ function endRound(room, socketId) {
     if (Array.isArray(secondHighestBetPlayer)) {
       secondHighestBetPlayer.forEach((p) => {
         p.bananas += delta;
-      }); 
+      });
     } else {
-      
-      if(secondHighestBetPlayer) secondHighestBetPlayer.bananas += delta;
+      if (secondHighestBetPlayer) secondHighestBetPlayer.bananas += delta;
     }
+  }
 
   room.bank = (room.bank || 0) + winningBet;
   room.currentRound.status = 'revealed';
